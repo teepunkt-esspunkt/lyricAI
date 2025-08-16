@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 *.txt
+/albumLinks
+/lyricsLinks
 
 AAAA.py
 #old WIP

@@ -11,7 +11,7 @@ from selenium.webdriver.support import expected_conditions as EC
 HEADLESS = True # True = hide browser window
 
 
-ARTISTS = [
+ARTISTS = [ 
                
                 ]   # list of artist names
 
@@ -25,30 +25,25 @@ LyricLinkOutputFolder = "lyricLinks"
 LyricLinkOutputDir = os.path.join(script_dir, LyricLinkOutputFolder)
 LyricLinkOutputFile = "AllLyricLinks.txt"
 
+PROMPT = "Manchmal denke ich mir"
+
 SCROLL_PAUSE = 1.2
 MAX_SCROLLS = 50
-
-# options = Options()
-# options.add_argument("--headless")
-# service = Service(GeckoDriverManager().install())
-# driver = webdriver.Firefox(service=service, options=options)
 
 def ensure_output_dir(output_dir):
     out = os.path.join(script_dir, output_dir)
     os.makedirs(out, exist_ok=True)
     return out
 
-#to deprecate combineAlbumLinks.py
 def combine_all(input_dir, output_file="combined.txt"):
-    content = ""
-    txt_files = [x for x in os.listdir(input_dir) if x.endswith(".txt") and x !=output_file]
-    for file in txt_files:
-        file_path = os.path.join(input_dir, file)
-        with open(file_path, "r", encoding="utf-8") as links:
-            content += clean_lines(links)
     out_path = os.path.join(script_dir, output_file)
     with open(out_path, "w", encoding="utf-8") as outfile:
-        outfile.write(content)
+        for root, _, files in os.walk(input_dir):
+            for name in sorted(files):
+                if name.endswith(".txt") and name != output_file:
+                    file_path = os.path.join(root, name)
+                    with open(file_path, "r", encoding="utf-8") as fh:
+                        outfile.write(clean_lines(fh))
     return out_path
 
 def clean_lines(x):

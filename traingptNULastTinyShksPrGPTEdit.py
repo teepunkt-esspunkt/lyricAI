@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+import lyricAI_functions
 # =========================
 # CONFIG (tweak these here)
 # =========================
@@ -48,7 +49,7 @@ MAX_STEPS       = 60      # total training steps
 NUM_RETURN      = 2
 MAX_GEN_TOK     = 300
 TOP_K           = 10
-PROMPT          = "Manchmal denke ich mir"
+PROMPT          = lyricAI_functions.PROMPT
 
 # Model size
 @dataclass
