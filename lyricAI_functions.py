@@ -8,12 +8,13 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+
 HEADLESS = True # True = hide browser window
 
-
-ARTISTS = [ 
-               
-                ]   # list of artist names
+EXTRA_ARTISTS = [
+    # "Some Artist",
+    # "Another Artist"
+]
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -25,10 +26,37 @@ LyricLinkOutputFolder = "lyricLinks"
 LyricLinkOutputDir = os.path.join(script_dir, LyricLinkOutputFolder)
 LyricLinkOutputFile = "AllLyricLinks.txt"
 
+LyricsOutputFolder = "Lyrics"
+LyricsOutputDir = os.path.join(script_dir, LyricsOutputFolder)
+LyricsOutputFile = "combined.txt"
+
 PROMPT = "Manchmal denke ich mir"
 
 SCROLL_PAUSE = 1.2
 MAX_SCROLLS = 50
+
+ARTIST_FILE = os.path.join(script_dir, "artistsList.txt")
+
+def load_artists(path=ARTIST_FILE, extra=None):
+    """Load artists from file + optional manual list."""
+    artists = []
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            artists = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+    else:
+        print(f"[WARN] Artist file not found: {path}")
+    if extra:
+        artists.extend(extra)
+    # dedupe, preserve order
+    seen, ordered = set(), []
+    for a in artists:
+        if a not in seen:
+            seen.add(a)
+            ordered.append(a)
+    return ordered
+
+ARTISTS = load_artists(extra=EXTRA_ARTISTS)
+
 
 def ensure_output_dir(output_dir):
     out = os.path.join(script_dir, output_dir)
