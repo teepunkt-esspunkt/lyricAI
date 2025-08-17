@@ -7,9 +7,9 @@ just doing it for fun/excercise/science
 so far:
 - enter artist name to get albumlinks
 - get song links per albumlink
+- get lyrics from song links
 
 missing:
-get lyrics from song links
 clean and combine all
 train on it
 ???

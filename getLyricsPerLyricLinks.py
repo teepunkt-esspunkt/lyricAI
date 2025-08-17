@@ -57,24 +57,56 @@ def extract_lyricsold(driver, url):
     lyrics_text = "\n".join(lines)
     return lyrics_text.strip()
 
-def extract_lyrics(soup) -> str | None:
-    # Current Genius lyric containers
-    blocks = soup.find_all("div", {"data-lyrics-container": "true"})
-    # Fallback for older markup
+def extract_lyrics(driver, url) -> str | None:
+    driver.get(url)
+    lyricAI_functions.dismiss_cookies_if_present(driver)
+
+    soup = BeautifulSoup(driver.page_source, "html.parser")
+
+    # 1) Primary: modern Genius markup
+    blocks = soup.select('div[data-lyrics-container="true"]')
+
+    # 2) Fallback: older markup used by some pages
     if not blocks:
         blocks = soup.select("div[class*='Lyrics__Container']")
+
     if not blocks:
         return None
 
-    noise = ("Contributors", "Read More", "Lyrics", "Embed", "You might also like")
     lines = []
     for blk in blocks:
-        for s in blk.stripped_strings:
-            t = s.strip()
-            if t and not any(n in t for n in noise):
-                lines.append(t)
-    text = "\n".join(lines).strip()
-    return text or None
+        # Skip any “Read More” button or expandable UI within the block
+        for el in blk.select("[data-read-more], [aria-expanded], button"):
+            el.decompose()
+
+        # Convert <br> to newlines so we don’t lose line breaks
+        for br in blk.find_all("br"):
+            br.replace_with("\n")
+
+        # Extract text preserving inline newlines
+        text = blk.get_text("\n", strip=False)
+
+        # Normalize Windows/mac line breaks and collapse \r
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+
+        # Split to lines and strip trailing spaces, but keep empty lines
+        for raw in text.split("\n"):
+            ln = raw.rstrip()
+
+            # Keep custom bracket tags like [Jamais-Vu], [Hook: ...], etc.
+            # (Do NOT filter here—save filtering for your combine_and_clean step)
+            if ln is not None:
+                lines.append(ln)
+
+    # Trim leading/trailing blank lines produced by container joins
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+
+    # Join with single newlines
+    lyrics = "\n".join(lines).strip()
+    return lyrics or None
 
 
 def safe(s: str) -> str:

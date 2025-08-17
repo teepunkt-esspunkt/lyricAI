@@ -127,4 +127,3 @@ def scroll_to_bottom(driver, max_scrolls=MAX_SCROLLS, pause=SCROLL_PAUSE):
         else:
             stalls = 0
         last_height = new_height
-
