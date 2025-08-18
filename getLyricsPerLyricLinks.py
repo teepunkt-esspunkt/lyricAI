@@ -1,185 +1,185 @@
-import lyricAI_functions
-from bs4 import BeautifulSoup
-import re
 import os
+import re
 import time
+from bs4 import BeautifulSoup
 
-def get_soup(driver, url: str):
-    driver.get(url)
-    lyricAI_functions.dismiss_cookies_if_present(driver)
-    time.sleep(0.3)  # tiny settle
-    return BeautifulSoup(driver.page_source, "html.parser")
+import lyricAI_functions as L  # central helpers & config
 
-def extract_title(soup) -> str:
+# =====================
+# CONFIG
+# =====================
+
+LYRIC_LINKS_ROOT = L.LyricLinkOutputDir           # input folder with per-album lyric link files
+LYRIC_LINKS_COMBINED = L.LyricLinkOutputFile      # e.g., "AllLyricLinks.txt"
+
+LYRICS_OUT_ROOT = L.LyricsOutputDir               # output folder for lyrics (structured)
+
+LYRIC_URL_RE = re.compile(r"^https://genius\.com/[^\"?#]+-lyrics/?$", re.IGNORECASE)
+
+SLEEP_BETWEEN_PAGES = 0.2
+RETRIES = 2
+RETRY_WAIT = 1.0
+
+# =====================
+# HELPERS
+# =====================
+
+def safe_name(s: str) -> str:
+    return re.sub(r"[^\w\-_. ]+", "_", s).strip()
+
+def normalize_url(u: str) -> str:
+    return u.split("#", 1)[0].split("?", 1)[0].rstrip("/")
+
+def read_and_clean_lyric_links(combined_path: str):
+    """Read AllLyricLinks.txt, filter to valid lyric URLs, normalize, dedupe (order-preserving)."""
+    with open(combined_path, "r", encoding="utf-8") as f:
+        raw = [line.strip() for line in f if line.strip()]
+
+    seen = set()
+    cleaned = []
+    for u in raw:
+        nu = normalize_url(u)
+        if LYRIC_URL_RE.match(nu) and nu not in seen:
+            seen.add(nu)
+            cleaned.append(nu)
+    return cleaned
+
+def parse_artist_album_song(url: str, soup: BeautifulSoup):
+    """
+    Try to parse artist / album / song names.
+    - Artist: from breadcrumb or <a href="/artists/...">
+    - Album: from breadcrumb if present
+    - Song: from page <h1> or URL slug
+    """
+    artist, album, song = "UnknownArtist", "UnknownAlbum", "Untitled"
+
+    # Artist
+    a = soup.select_one('a[href^="/artists/"]')
+    if a:
+        artist = a.get_text(strip=True)
+
+    # Album (breadcrumb or meta)
+    alb = soup.select_one('a[href*="/albums/"]')
+    if alb:
+        album = alb.get_text(strip=True)
+
+    # Song (title h1 or slug)
     h1 = soup.find("h1")
-    if h1 and h1.get_text(strip=True):
-        return h1.get_text(strip=True)
-    og = soup.find("meta", property="og:title")
-    if og and og.get("content"):
-        return og["content"].strip()
-    if soup.title and soup.title.string:
-        return soup.title.string.strip()
-    return "Unknown Title"
+    if h1:
+        song = h1.get_text(strip=True)
+    else:
+        slug = url.rstrip("/").rsplit("/", 1)[-1]
+        song = slug.replace("-lyrics", "").replace("-", " ")
 
-def extract_artist_album(soup) -> tuple[str, str]:
-    # Best-effort: first /artists/ and first /albums/ link text
-    artist = None
-    a1 = soup.select_one("a[href*='/artists/']")
-    if a1 and a1.get_text(strip=True):
-        artist = a1.get_text(strip=True)
+    return artist, album, song
 
-    album = None
-    a2 = soup.select_one("a[href*='/albums/']")
-    if a2 and a2.get_text(strip=True):
-        album = a2.get_text(strip=True)
-
-    return artist or "Unknown Artist", album or "Unknown Album"
-
-def extract_year(soup) -> str:
-    m = re.search(r"\b(19|20)\d{2}\b", soup.get_text(" ", strip=True))
-    return m.group(0) if m else "____"
-
-def extract_lyricsold(driver, url):
-    print(f"Visiting {url}")
-    driver.get(url)
-    soup = BeautifulSoup(driver.page_source, "html.parser")
-    lyrics_blocks = soup.find_all("div", {"data-lyrics-container": "true"})
-    if not lyrics_blocks:
-        return None
-    # Collect lines while filtering out non-lyrics content
-    lines = []
-    for block in lyrics_blocks:
-        for line in block.stripped_strings:
-            # Skip common non-lyrics patterns
-            if "Contributors" in line or "Read More" in line or "Lyrics" in line:
-                continue
-            lines.append(line)
-    lyrics_text = "\n".join(lines)
-    return lyrics_text.strip()
-
-def extract_lyrics(driver, url) -> str | None:
-    driver.get(url)
-    lyricAI_functions.dismiss_cookies_if_present(driver)
-
-    soup = BeautifulSoup(driver.page_source, "html.parser")
-
-    # 1) Primary: modern Genius markup
+def extract_lyrics_text(soup: BeautifulSoup) -> str:
+    """Extract lyrics text from Genius page."""
     blocks = soup.select('div[data-lyrics-container="true"]')
+    if blocks:
+        text = "\n".join(div.get_text("\n", strip=False) for div in blocks)
+    else:
+        legacy = soup.select_one("div.lyrics")
+        if legacy:
+            text = legacy.get_text("\n", strip=False)
+        else:
+            containers = soup.select("div.Lyrics__Container-sc-1ynbvzw-6")
+            text = "\n".join(c.get_text("\n", strip=False) for c in containers) if containers else ""
 
-    # 2) Fallback: older markup used by some pages
-    if not blocks:
-        blocks = soup.select("div[class*='Lyrics__Container']")
+    # Cleanup
+    cleaned_lines = []
+    for line in text.splitlines():
+        s = line.strip("\u200b ").rstrip()
+        if not s:
+            cleaned_lines.append("")
+            continue
+        if s.lower().startswith("you might also like"):
+            continue
+        if s.endswith("Embed"):
+            continue
+        cleaned_lines.append(s)
 
-    if not blocks:
-        return None
+    # Collapse multiple blank lines
+    out, blank = [], 0
+    for l in cleaned_lines:
+        if l == "":
+            blank += 1
+            if blank <= 1:
+                out.append("")
+        else:
+            blank = 0
+            out.append(l)
 
-    lines = []
-    for blk in blocks:
-        # Skip any “Read More” button or expandable UI within the block
-        for el in blk.select("[data-read-more], [aria-expanded], button"):
-            el.decompose()
+    return "\n".join(out).strip()
 
-        # Convert <br> to newlines so we don’t lose line breaks
-        for br in blk.find_all("br"):
-            br.replace_with("\n")
+def save_song_lyrics(base_root: str, artist: str, album: str, song: str, lyrics_text: str) -> str:
+    artist_dir = os.path.join(base_root, safe_name(artist))
+    album_dir = os.path.join(artist_dir, safe_name(album))
+    os.makedirs(album_dir, exist_ok=True)
 
-        # Extract text preserving inline newlines
-        text = blk.get_text("\n", strip=False)
+    fname = safe_name(song)[:150] + ".txt"
+    path = os.path.join(album_dir, fname)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(lyrics_text + "\n")
+    return path
 
-        # Normalize Windows/mac line breaks and collapse \r
-        text = text.replace("\r\n", "\n").replace("\r", "\n")
-
-        # Split to lines and strip trailing spaces, but keep empty lines
-        for raw in text.split("\n"):
-            ln = raw.rstrip()
-
-            # Keep custom bracket tags like [Jamais-Vu], [Hook: ...], etc.
-            # (Do NOT filter here—save filtering for your combine_and_clean step)
-            if ln is not None:
-                lines.append(ln)
-
-    # Trim leading/trailing blank lines produced by container joins
-    while lines and not lines[0].strip():
-        lines.pop(0)
-    while lines and not lines[-1].strip():
-        lines.pop()
-
-    # Join with single newlines
-    lyrics = "\n".join(lines).strip()
-    return lyrics or None
-
-def extract_lyrics_from_soup(soup) -> str | None:
-    blocks = soup.select('div[data-lyrics-container="true"]')
-    if not blocks:
-        blocks = soup.select("div[class*='Lyrics__Container']")
-    if not blocks:
-        return None
-
-    lines = []
-    for blk in blocks:
-        for el in blk.select("[data-read-more], [aria-expanded], button"):
-            el.decompose()
-        for br in blk.find_all("br"):
-            br.replace_with("\n")
-        text = blk.get_text("\n", strip=False).replace("\r\n","\n").replace("\r","\n")
-        lines.extend(raw.rstrip() for raw in text.split("\n"))
-
-    while lines and not lines[0].strip(): lines.pop(0)
-    while lines and not lines[-1].strip(): lines.pop()
-    return ("\n".join(lines)).strip() or None
-
-
-def safe(s: str) -> str:
-    return re.sub(r'[\\/*?:\"<>|]', "_", s).strip()
-
-def save_song_into_album_file(artist: str, album: str, title: str, year: str, lyrics: str) -> str:
-    # Write to your new Lyrics root
-    # Make sure lyricAI_functions.py defines: LyricsOutputDir = os.path.join(script_dir, "Lyrics")
-    artist_dir = lyricAI_functions.ensure_output_dir(os.path.join(lyricAI_functions.LyricsOutputDir, safe(artist)))
-    out_path = os.path.join(artist_dir, f"{safe(album)}.txt")
-    heading = f"{{{title} - {album} - {year}}}"
-    with open(out_path, "a", encoding="utf-8") as f:
-        f.write(heading + "\n\n")
-        f.write(lyrics + "\n\n")
-        f.write("=" * 50 + "\n\n")
-    return out_path
-
-
+# =====================
+# MAIN
+# =====================
 
 def main():
-    combined_path = lyricAI_functions.combine_all(lyricAI_functions.LyricLinkOutputDir, lyricAI_functions.LyricLinkOutputFile)
-    print(f"[OK] Using combined link list: {combined_path}")
-    with open(combined_path, "r", encoding="utf-8") as fh:
-        urls = [u.strip() for u in fh if u.strip()]
+    os.makedirs(LYRICS_OUT_ROOT, exist_ok=True)
 
-    driver = lyricAI_functions.make_driver(headless=lyricAI_functions.HEADLESS)
-    seen = set()
-    written, skipped = 0, 0
+    # 1) Combine all lyric-link lists under LyricLinks/ → AllLyricLinks.txt
+    combined_links_path = L.combine_all(L.LyricLinkOutputDir, L.LyricLinkOutputFile)
+    print(f"[OK] Combined lyric links -> {combined_links_path}")
+
+    # 2) Read + clean + dedupe lyric URLs
+    lyric_urls = read_and_clean_lyric_links(combined_links_path)
+    if not lyric_urls:
+        print("[WARN] No lyric URLs found. Did STEP TWO create files in LyricLinks/?")
+        return
+    print(f"[INFO] Fetching {len(lyric_urls)} lyric pages")
+
+    # 3) Visit each lyric page and save lyrics into Artist/Album/Song.txt
+    driver = L.make_driver(headless=L.HEADLESS)
+    saved = 0
     try:
-        total = len(urls)
-        for i, url in enumerate(urls, 1):
-            print(f"[{i}/{total}] {url}")
-            if url in seen:
-                continue
-            seen.add(url)
-            soup = get_soup(driver, url)
-            title = extract_title(soup)
-            artist, album = extract_artist_album(soup)
-            year = extract_year(soup)
-            lyrics = extract_lyrics_from_soup(soup)
-            if not lyrics:
-                print("   [!] No lyrics container found")
-                skipped += 1
-                continue
+        for i, url in enumerate(lyric_urls, 1):
+            print(f"[{i}/{len(lyric_urls)}] {url}")
+            attempt = 0
+            while True:
+                try:
+                    attempt += 1
+                    driver.get(url)
+                    L.dismiss_cookies_if_present(driver)
+                    time.sleep(0.5)
 
-            save_song_into_album_file(artist, album, safe(title), year, lyrics)
-            written += 1
-            time.sleep(0.2)  # gentle pacing
+                    soup = BeautifulSoup(driver.page_source, "html.parser")
+                    artist, album, song = parse_artist_album_song(url, soup)
+                    lyrics = extract_lyrics_text(soup)
+
+                    if not lyrics:
+                        raise RuntimeError("No lyrics extracted (empty text)")
+
+                    out_path = save_song_lyrics(LYRICS_OUT_ROOT, artist, album, song, lyrics)
+                    print(f"  -> saved: {out_path}")
+                    saved += 1
+                    break
+                except Exception as e:
+                    if attempt <= RETRIES:
+                        print(f"  ! retry {attempt}/{RETRIES} due to: {e}")
+                        time.sleep(RETRY_WAIT)
+                        continue
+                    else:
+                        print(f"[ERROR] Failed to fetch {url}: {e}")
+                        break
+
+            time.sleep(SLEEP_BETWEEN_PAGES)
     finally:
         driver.quit()
 
-    print(f"output root: {lyricAI_functions.LyricsOutputDir}")
-
+    print(f"[OK] Saved {saved} songs into {LYRICS_OUT_ROOT}/<Artist>/<Album>/")
 
 if __name__ == "__main__":
     main()

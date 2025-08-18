@@ -20,14 +20,15 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 
 AlbumLinkOutputFolder = "albumLinks"
 AlbumLinkOutputDir = os.path.join(script_dir, AlbumLinkOutputFolder)
-AlbumLinkOutputFile = "allAlbumLinks.txt"
 
+AlbumLinkOutputFile = "allAlbumLinks.txt"
 LyricLinkOutputFolder = "lyricLinks"
 LyricLinkOutputDir = os.path.join(script_dir, LyricLinkOutputFolder)
-LyricLinkOutputFile = "AllLyricLinks.txt"
 
+LyricLinkOutputFile = "AllLyricLinks.txt"
 LyricsOutputFolder = "Lyrics"
 LyricsOutputDir = os.path.join(script_dir, LyricsOutputFolder)
+
 LyricsOutputFile = "combined.txt"
 
 PROMPT = "Manchmal denke ich mir"

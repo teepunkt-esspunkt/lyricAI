@@ -5,8 +5,6 @@ import lyricAI_functions
 import time
 
 LINK_PATTERN = re.compile(r"https://genius\.com/[^\"?#]+-lyrics")
-output_dir = lyricAI_functions.LyricLinkOutputDir
-input_dir = lyricAI_functions.AlbumLinkOutputDir
 content = ""
 
 def safe(s):
@@ -65,12 +63,21 @@ def main():
     # Build the combined ALBUM list here (from step 1 outputs)
     combined_albums = lyricAI_functions.combine_all(
         lyricAI_functions.AlbumLinkOutputDir,
-        lyricAI_functions.AlbumLinkOutputFile  # e.g. "allAlbumLinks.txt"
+        lyricAI_functions.AlbumLinkOutputFile
     )
     print(f"[OK] Using combined album list: {combined_albums}")
 
     with open(combined_albums, "r", encoding="utf-8") as f:
-        album_urls = [line.strip() for line in f if line.strip()]
+        raw = [line.strip() for line in f if line.strip()]
+    # keep only album pages & de-dupe in order
+    album_urls = []
+    seen = set()
+    for u in raw:
+        if u.startswith("https://genius.com/albums/"):
+            if u not in seen:
+                seen.add(u)
+                album_urls.append(u)
+
 
     driver = lyricAI_functions.make_driver(headless=lyricAI_functions.HEADLESS)
     try:
