@@ -7,7 +7,7 @@ just doing it for fun/excercise/science
 so far:
 - enter artist name to get albumlinks
 - get song links per albumlink
-- get lyrics from song links
+- get lyrics from song links (artist folder still broken)
 
 missing:
 clean and combine all

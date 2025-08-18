@@ -11,8 +11,6 @@ ARTIST_NAMES = lyricAI_functions.ARTISTS
 
 output_folder = lyricAI_functions.AlbumLinkOutputFolder
 
-#HEADLESS = lyricAI_functions.HEADLESS
-
 def extract_album_links(html):
     soup = BeautifulSoup(html, "html.parser")
     links = set()

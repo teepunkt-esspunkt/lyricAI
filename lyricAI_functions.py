@@ -31,7 +31,7 @@ LyricsOutputDir = os.path.join(script_dir, LyricsOutputFolder)
 
 LyricsOutputFile = "combined.txt"
 
-PROMPT = "Manchmal denke ich mir"
+PROMPT = "So"
 
 SCROLL_PAUSE = 1.2
 MAX_SCROLLS = 50
