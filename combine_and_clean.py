@@ -113,6 +113,12 @@ def is_noise_line(line: str) -> bool:
 
 BRACKET_LINE = re.compile(r"^\[.*\]$")
 
+def split_at_first_section_tag(lines: list[str]) -> tuple[list[str], list[str]]:
+    for i, line in enumerate(lines):
+        if ALLOWED_SECTION_TAG.match(line.strip()):
+            return lines[i:], lines[:i]
+    return lines, []
+
 def split_at_first_marker(lines: list[str]) -> tuple[list[str], list[str]]:
     """
     Marker = (a) REAL section tag, or (b) any NON-META bracketed tag.
@@ -156,18 +162,43 @@ def split_at_first_marker(lines: list[str]) -> tuple[list[str], list[str]]:
 SKIPPED_LOG = os.path.join(lyricAI_functions.script_dir, "skipped_lines.txt")
 
 def log_skipped(heading: str, lines: list[str]):
-    if not lines:
+    useful = [s for s in lines if s.strip()]
+    if not useful:
         return
     with open(SKIPPED_LOG, "a", encoding="utf-8") as log:
         log.write(f"\n=== {heading} ===\n")
-        for s in lines:
+        for s in useful:
             log.write(s + "\n")
         log.write("\n" + "="*60 + "\n\n")
+
+
+def is_noise_line_with_reason(line: str) -> tuple[bool, str | None]:
+    l = line.strip()
+    if not l:
+        return (False, None)
+    if URL_LINE.search(l):
+        return (True, "url")
+    if len(l) > VERY_LONG:
+        return (True, "too_long")
+
+    if CONTRIB_LINE.match(l):
+        return (True, "contributors_line")
+    if RELEASE_LINE.match(l):
+        return (True, "release_line")
+    if COPYRIGHT_LINE.match(l):
+        return (True, "copyright_line")
+
+    # ONLY bracketed meta gets dropped (sample/skit/etc.)
+    if l.startswith("[") and l.endswith("]") and META_TAG.match(l):
+        return (True, "meta_tag")
+
+    return (False, None)
+
 
 def clean_block(body: str, heading: str) -> str:
     lines = body.splitlines()
 
-    lines, preface_cut = split_at_first_marker(lines)
+    lines, preface_cut = split_at_first_section_tag(lines)
     if preface_cut:
         log_skipped(heading, preface_cut)
 
@@ -175,16 +206,20 @@ def clean_block(body: str, heading: str) -> str:
     last_blank = False
     for raw in lines:
         line = raw.rstrip()
-        if is_noise_line(line):
-            skipped.append(line); continue
+        drop, why = is_noise_line_with_reason(line)
+        if drop:
+            skipped.append(f"{line}    <-- {why}")
+            continue
         if not line.strip():
             if last_blank:
-                skipped.append(line); continue
+                # don’t spam the log with pure blanks
+                continue
             last_blank = True
             kept.append("")
             continue
-        last_blank = False
-        kept.append(line)
+    last_blank = False
+    kept.append(line)
+
 
     while kept and kept[0] == "":
         skipped.append(kept.pop(0))

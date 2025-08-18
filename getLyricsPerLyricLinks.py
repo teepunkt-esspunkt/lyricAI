@@ -108,6 +108,26 @@ def extract_lyrics(driver, url) -> str | None:
     lyrics = "\n".join(lines).strip()
     return lyrics or None
 
+def extract_lyrics_from_soup(soup) -> str | None:
+    blocks = soup.select('div[data-lyrics-container="true"]')
+    if not blocks:
+        blocks = soup.select("div[class*='Lyrics__Container']")
+    if not blocks:
+        return None
+
+    lines = []
+    for blk in blocks:
+        for el in blk.select("[data-read-more], [aria-expanded], button"):
+            el.decompose()
+        for br in blk.find_all("br"):
+            br.replace_with("\n")
+        text = blk.get_text("\n", strip=False).replace("\r\n","\n").replace("\r","\n")
+        lines.extend(raw.rstrip() for raw in text.split("\n"))
+
+    while lines and not lines[0].strip(): lines.pop(0)
+    while lines and not lines[-1].strip(): lines.pop()
+    return ("\n".join(lines)).strip() or None
+
 
 def safe(s: str) -> str:
     return re.sub(r'[\\/*?:\"<>|]', "_", s).strip()
@@ -146,7 +166,7 @@ def main():
             title = extract_title(soup)
             artist, album = extract_artist_album(soup)
             year = extract_year(soup)
-            lyrics = extract_lyrics(soup)
+            lyrics = extract_lyrics_from_soup(soup)
             if not lyrics:
                 print("   [!] No lyrics container found")
                 skipped += 1
