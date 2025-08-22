@@ -17,7 +17,9 @@ LYRICS_OUT_ROOT = L.LyricsOutputDir
 
 LYRIC_URL_RE = re.compile(r"^https://genius\.com/[^\"?#]+-lyrics/?$", re.IGNORECASE)
 
-provenance = L.build_provenance_map(LYRIC_LINKS_ROOT)
+#provenance = L.build_provenance_map(LYRIC_LINKS_ROOT)
+provenance = L.build_provenance_map(LYRIC_LINKS_ROOT) or {}
+
 
 SLEEP_BETWEEN_PAGES = 0.2
 RETRIES = 2

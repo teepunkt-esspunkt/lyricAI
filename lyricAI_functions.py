@@ -203,3 +203,31 @@ def update_artist_map(artist_display: str):
     with open(ARTIST_MAP_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     return slug
+def normalize_url(u: str) -> str:
+    return u.split("#", 1)[0].split("?", 1)[0].rstrip("/")
+
+def build_provenance_map(lyric_links_root: str) -> dict[str, tuple[str, str]]:
+    """
+    Walk LyricLinks/<artist>/<album>_lyric_links.txt and map:
+        lyric_url -> (artist_slug, album_slug)
+    """
+    prov = {}
+    for artist in os.listdir(lyric_links_root):
+        a_dir = os.path.join(lyric_links_root, artist)
+        if not os.path.isdir(a_dir):
+            continue
+        for fname in os.listdir(a_dir):
+            if not fname.endswith("_lyric_links.txt"):
+                continue
+            album_slug = fname[:-len("_lyric_links.txt")]
+            file_path = os.path.join(a_dir, fname)
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        url = normalize_url(line.strip())
+                        if url:
+                            prov[url] = (artist, album_slug)
+            except Exception:
+                # keep going even if one file is borked
+                pass
+            
