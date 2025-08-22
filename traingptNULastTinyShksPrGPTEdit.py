@@ -209,6 +209,9 @@ from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 
+import tiktoken
+enc = tiktoken.get_encoding('gpt2')
+
 ddp = int(os.environ.get('RANK', -1)) != -1
 if ddp:
     assert torch.cuda.is_available(), "DDP branch requires CUDA for now"
@@ -436,6 +439,26 @@ try:
                 save_ckpt_full(step + 1, raw_model, optimizer)
             else:
                 save_ckpt_light(step + 1, raw_model)
+            # === periodic sample generation ===
+            model.eval()
+            sample_prompt = PROMPT
+            tokens = enc.encode(sample_prompt)
+            tokens = torch.tensor(tokens, dtype=torch.long).unsqueeze(0).to(device)
+
+            with torch.no_grad():
+                x = tokens
+                for _ in range(MAX_GEN_TOK):
+                    logits, _ = model(x)
+                    logits = logits[:, -1, :]
+                    probs = F.softmax(logits, dim=-1)
+                    topk_probs, topk_indices = torch.topk(probs, TOP_K, dim=-1)
+                    ix = torch.multinomial(topk_probs, 1)
+                    xcol = torch.gather(topk_indices, -1, ix)
+                    x = torch.cat((x, xcol), dim=1)
+
+            decoded = enc.decode(x[0].tolist())
+            print(f"\n=== SAMPLE @ step {step+1} ===\n{decoded}\n")
+            model.train()
 
 except KeyboardInterrupt:
     if master_process:
@@ -453,8 +476,7 @@ if ddp:
 # =========================
 # Generation
 # =========================
-import tiktoken
-enc = tiktoken.get_encoding('gpt2')
+
 
 model.eval()
 num_return_sequences = NUM_RETURN
