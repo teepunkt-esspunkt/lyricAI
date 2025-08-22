@@ -5,6 +5,6 @@ __pycache__/
 /albumLinks
 /lyricLinks
 /Lyrics
-
+*.pt
 AAAA.py
 #old WIP

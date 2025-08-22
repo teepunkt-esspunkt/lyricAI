@@ -24,7 +24,7 @@ SAVE_SCALER     = False   # only relevant if you use GradScaler (we don't here)
 # Paths anchored to this .py file
 SCRIPT_DIR      = os.path.dirname(os.path.abspath(__file__))
 CKPT_PATH       = os.path.join(SCRIPT_DIR, "checkpoint.pt")
-DATA_PATH       = os.path.join(SCRIPT_DIR, "combined - Copy.txt")  # change if needed
+DATA_PATH       = os.path.join(SCRIPT_DIR, "combined.txt")  # change if needed
 
 # Device / precision
 SEED            = 1337
