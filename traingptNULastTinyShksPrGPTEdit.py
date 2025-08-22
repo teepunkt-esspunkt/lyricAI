@@ -43,7 +43,7 @@ GRAD_CLIP       = 1.0
 
 # LR schedule
 WARMUP_STEPS    = 10
-MAX_STEPS       = 60      # total training steps
+MAX_STEPS       = 600      # total training steps
 
 # Generation
 NUM_RETURN      = 2

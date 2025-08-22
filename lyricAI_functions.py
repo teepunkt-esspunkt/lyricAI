@@ -31,7 +31,13 @@ LyricsOutputDir = os.path.join(script_dir, LyricsOutputFolder)
 
 LyricsOutputFile = "combined.txt"
 
-PROMPT = "So"
+prompt_file = os.path.join(script_dir, "prompt.txt")
+
+if os.path.exists(prompt_file):
+    with open(prompt_file, "r", encoding="utf-8") as f:
+        PROMPT = f.read().strip() or "So"
+else: 
+    PROMPT = "So"
 
 SCROLL_PAUSE = 1.2
 MAX_SCROLLS = 50
