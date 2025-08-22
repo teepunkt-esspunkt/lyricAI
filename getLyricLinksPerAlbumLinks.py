@@ -61,23 +61,14 @@ def get_song_links(driver, album_url):
 
 def main():
     # Build the combined ALBUM list here (from step 1 outputs)
-    combined_albums = lyricAI_functions.combine_all(
+    combined_albums = lyricAI_functions.combine_and_clean_links(
         lyricAI_functions.AlbumLinkOutputDir,
         lyricAI_functions.AlbumLinkOutputFile
     )
     print(f"[OK] Using combined album list: {combined_albums}")
 
     with open(combined_albums, "r", encoding="utf-8") as f:
-        raw = [line.strip() for line in f if line.strip()]
-    # keep only album pages & de-dupe in order
-    album_urls = []
-    seen = set()
-    for u in raw:
-        if u.startswith("https://genius.com/albums/"):
-            if u not in seen:
-                seen.add(u)
-                album_urls.append(u)
-
+        album_urls = [line.strip() for line in f if line.strip()]
 
     driver = lyricAI_functions.make_driver(headless=lyricAI_functions.HEADLESS)
     try:

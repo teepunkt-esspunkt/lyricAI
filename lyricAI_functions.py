@@ -64,6 +64,61 @@ def ensure_output_dir(output_dir):
     os.makedirs(out, exist_ok=True)
     return out
 
+import re
+import json
+
+def normalize_url(u: str) -> str:
+    return u.split("#", 1)[0].split("?", 1)[0].rstrip("/")
+
+def combine_and_clean_links(input_dir: str,
+                            output_file: str,
+                            keep_pattern: re.Pattern | None = None,
+                            drop_if_contains: tuple[str, ...] = ("instrumental",)):
+    """
+    Combine all .txt files under input_dir into output_file (at script_dir),
+    apply cleaning:
+      - drop lines containing any of drop_if_contains (case-insensitive)
+      - normalize URLs (strip query/hash/trailing slash)
+      - keep only lines matching keep_pattern (if provided)
+      - de-dupe while preserving order
+    Returns absolute path to output_file.
+    """
+    out_path = os.path.join(script_dir, output_file)
+
+    def _line_ok(line: str) -> bool:
+        low = line.lower()
+        if any(tok in low for tok in drop_if_contains):
+            return False
+        return True
+
+    seen = set()
+    cleaned = []
+
+    for root, _, files in os.walk(input_dir):
+        for name in sorted(files):
+            if not name.endswith(".txt"):
+                continue
+            file_path = os.path.join(root, name)
+            with open(file_path, "r", encoding="utf-8") as fh:
+                for raw in fh:
+                    line = raw.strip()
+                    if not line:
+                        continue
+                    if not _line_ok(line):
+                        continue
+                    line = normalize_url(line)
+                    if keep_pattern and not keep_pattern.match(line):
+                        continue
+                    if line not in seen:
+                        seen.add(line)
+                        cleaned.append(line)
+
+    with open(out_path, "w", encoding="utf-8") as out:
+        for line in cleaned:
+            out.write(line + "\n")
+
+    return out_path
+
 def combine_all(input_dir, output_file="combined.txt"):
     out_path = os.path.join(script_dir, output_file)
     with open(out_path, "w", encoding="utf-8") as outfile:
@@ -128,3 +183,23 @@ def scroll_to_bottom(driver, max_scrolls=MAX_SCROLLS, pause=SCROLL_PAUSE):
         else:
             stalls = 0
         last_height = new_height
+
+def slugify(s: str) -> str:
+    return re.sub(r"[^\w\-_. ]+", "_", s).strip()
+
+ARTIST_MAP_FILE = os.path.join(AlbumLinkOutputDir, "_artists.json")
+
+def update_artist_map(artist_display: str):
+    """Store a simple mapping slug -> display name for reuse later."""
+    slug = slugify(artist_display)
+    data = {}
+    if os.path.exists(ARTIST_MAP_FILE):
+        try:
+            with open(ARTIST_MAP_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+    data[slug] = artist_display
+    with open(ARTIST_MAP_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return slug

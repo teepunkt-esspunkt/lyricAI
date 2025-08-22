@@ -70,11 +70,13 @@ def save_links(artist_name, links):
     out_dir = lyricAI_functions.ensure_output_dir(output_folder)
     safe = re.sub(r"[^\w\-_. ]+", "_", artist_name).strip()
     path = os.path.join(out_dir, f"{safe}_album_links.txt")
+    unique = sorted(set(links))
     with open(path, "w", encoding="utf-8") as f:
-        for url in sorted(set(links)):
+        for url in unique:
             f.write(url + "\n")
     print(f"[OK] Saved {len(links)} album links -> {path}")
-
+    lyricAI_functions.update_artist_map(artist_name)
+    
 def main():
     driver = lyricAI_functions.make_driver(headless=lyricAI_functions.HEADLESS)
     try:
