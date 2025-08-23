@@ -2,15 +2,17 @@ import re, os
 import lyricAI_functions as L
 
 
-_BRACKET_RE = re.compile(r"\[[^\]\n]+\]")  # inline [ ... ] anywhere on a line
 _BRACKET_BLOCK_RE = re.compile(r"\[[^\]]*\]", re.DOTALL)  # match [ ... ] across lines
 _BRACKET_INLINE_RE = re.compile(r"\[[^\]\n]+\]")          # inline single-line
+_REPEAT_TAG_RE = re.compile(r"\(\s*(x?\d+|\d+x)\s*\)", re.IGNORECASE)
 
-def _strip_brackets(text: str) -> str:
-    # Remove multi-line [ ... ] blocks first
+
+def _strip_brackets_and_repeat_tags(text: str) -> str:
+    # remove [ ... ] blocks
     txt = _BRACKET_BLOCK_RE.sub("", text)
-    # Then remove any inline [ ... ]
     txt = _BRACKET_INLINE_RE.sub("", txt)
+    # remove (2x), (x2), etc.
+    txt = _REPEAT_TAG_RE.sub("", txt)
     return txt
 
 def combine_lyrics_corpus(
@@ -25,7 +27,14 @@ def combine_lyrics_corpus(
     - drop header/metadata lines (… Lyrics, Songtext zu …, Informationen …, etc.)
     - strip boilerplate; collapse blanks
     """
-    out_path = os.path.join(input_dir, output_file)
+    out_path = os.path.join(L.script_dir, output_file)
+
+    def _fix_split_parens(text: str) -> str:
+    # merge cases where a "(" or ")" is alone on its own line
+        text = re.sub(r"\(\s*\n\s*", "(", text)   # join open paren with next line
+        text = re.sub(r"\n\s*\)", ")", text)      # join closing paren with previous line
+        return text
+
 
     def keep_line(s: str) -> bool:
         low = s.lower()
@@ -61,9 +70,9 @@ def combine_lyrics_corpus(
                 # drop first line if requested
                 if skip_first_line:
                     raw_text = "\n".join(raw_text.splitlines()[1:])
-
-                # remove multi-line and inline [ ... ] blocks
-                raw_text = _strip_brackets(raw_text)
+                raw_text = _fix_split_parens(raw_text)
+                # remove ALL [ ... ] blocks (multi-line and inline)
+                raw_text = _strip_brackets_and_repeat_tags(raw_text)
 
                 # now split back into lines and clean
                 cleaned = []
@@ -72,7 +81,8 @@ def combine_lyrics_corpus(
                     if not keep_line(s):
                         continue
                     cleaned.append(s)
-                
+                cleaned = collapse_repeats(cleaned, max_consecutive=2, max_per_song=3, window=8)
+
                 # collapse multiple blanks
                 out_lines, blank = [], 0
                 for l in cleaned:
@@ -89,6 +99,49 @@ def combine_lyrics_corpus(
                     out.write(body + "\n\n")
 
     return out_path
+
+def collapse_repeats(lines, max_consecutive=2, max_per_song=3, window=8):
+    out, consec_count = [], 0
+    seen_counts = {}
+    recent = []
+
+    prev = None
+    for s in lines:
+        if not s:  # keep blanks as-is; they break consecutive runs
+            out.append(s)
+            prev, consec_count = None, 0
+            recent.clear()
+            continue
+
+        # total cap per song
+        cnt = seen_counts.get(s, 0)
+        if cnt >= max_per_song:
+            continue
+
+        # consecutive cap
+        if prev is not None and s == prev:
+            consec_count += 1
+            if consec_count >= max_consecutive:
+                continue
+        else:
+            consec_count = 0
+
+        # sliding window de-echo (optional)
+        if window and s in recent:
+            # allow if we haven't hit per-song cap yet but avoid quick echoes
+            if cnt >= max_per_song - 1:
+                continue
+
+        out.append(s)
+        seen_counts[s] = cnt + 1
+        prev = s
+
+        # update recent window
+        recent.append(s)
+        if len(recent) > window:
+            recent.pop(0)
+
+    return out
 
 def main():
     out_path = combine_lyrics_corpus(
