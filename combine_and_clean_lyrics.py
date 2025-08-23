@@ -74,6 +74,9 @@ def combine_lyrics_corpus(
                 # remove ALL [ ... ] blocks (multi-line and inline)
                 raw_text = _strip_brackets_and_repeat_tags(raw_text)
 
+                # join line -1 if line starts with ", [Character]"
+                # remove 2x / 3x (without brackets)
+                
                 # now split back into lines and clean
                 cleaned = []
                 for line in raw_text.splitlines():

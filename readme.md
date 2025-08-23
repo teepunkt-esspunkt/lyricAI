@@ -8,10 +8,10 @@ so far:
 - enter artist name to get albumlinks
 - get song links per albumlink
 - get lyrics from song links (artist folder still broken)
+- clean and combine all (join lines starts with "," + remove 2x / 3x mentions (without brackets))
+- train on it
 
 missing:
-clean and combine all
-train on it
 ???
 
 optional: 
