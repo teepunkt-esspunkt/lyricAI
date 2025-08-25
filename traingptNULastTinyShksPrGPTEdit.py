@@ -20,7 +20,7 @@ SAVE_EVERY      = 20      # save every N steps (e.g., 10 / 20 / 50)
 KEEP_LAST_N     = 3       # keep last N step-tagged checkpoints
 
 # Choose checkpoint type
-SAVE_OPTIMIZER  = False   # True = FULL resume (model + optimizer + meta)
+SAVE_OPTIMIZER  = False   # True = FULL resume (model + optimizer + meta) (not tested!)
 SAVE_SCALER     = False   # only relevant if you use GradScaler (we don't here)
 
 # Paths anchored to this .py file
@@ -196,13 +196,32 @@ class DataLoaderLite:
 
     def next_batch(self):
         B, T = self.B, self.T
-        buf = self.tokens[self.current_position : self.current_position + B*T + 1]
-        x = (buf[:-1]).view(B, T)
-        y = (buf[1:]).view(B, T)
-        self.current_position += B * T * self.num_processes
-        if self.current_position + (B * T * self.num_processes + 1) > len(self.tokens):
-            self.current_position = self.B * self.T * self.process_rank
-        return x, y
+        N = self.tokens.numel()
+        start = self.current_position
+        need = B * T + 1
+        end = start + need
+        # circular slice so we always get exactly need tokens
+        if end <= N:
+            buf = self.tokens[start:end]
+        else:
+            first = self.tokens[start:N]
+            rem = end - N
+            second = self.tokens[0:rem]
+            buf = torch.cat([first, second], dim=0)
+        # shape into (B, T)
+        x = buf[:-1].view(B, T)
+        y = buf[1:].view(B, T)
+        # advance pointer for next call, respecting multi-process striding
+        stride = B * T * self.num_processes
+        self.current_position = (start + stride) % N
+        return x, y        
+        # buf = self.tokens[self.current_position : self.current_position + B*T + 1]
+        # x = (buf[:-1]).view(B, T)
+        # y = (buf[1:]).view(B, T)
+        # self.current_position += B * T * self.num_processes
+        # if self.current_position + (B * T * self.num_processes + 1) > len(self.tokens):
+        #     self.current_position = self.B * self.T * self.process_rank
+        # return x, y
 
 # =========================
 # DDP / device setup
@@ -313,7 +332,15 @@ def save_ckpt_light(step, raw_model):
     """Model-only checkpoint + metadata; small & fast."""
     path = Path(CKPT_PATH)
     step_path = path.with_name(f"{path.stem}_step{step:06d}{path.suffix}")
-    payload = {"model": cpu_state_dict(raw_model), "meta": {"step": step, "time": time.time()}}
+    payload = {
+        "model": cpu_state_dict(raw_model),
+        "meta": {
+            "step": step,
+            "time": time.time(),
+            "current_position": getattr(train_loader, "current_position", 0),
+            "bt_world": (B, T, ddp_world_size),
+        },
+    }
     atomic_save(payload, step_path)
     atomic_save(payload, path)  # "latest"
     _rotate_ckpts(path)
@@ -377,7 +404,12 @@ if os.path.exists(CKPT_PATH):
     if isinstance(state, dict) and "meta" in state:
         start_step = int(state["meta"].get("step", 0))
         loaded_lr = state["meta"].get("lr", None)
-
+          # --- restore loader cursor if present ---
+        if "current_position" in state["meta"]:
+            train_loader.current_position = int(state["meta"]["current_position"])
+        else:
+            # fallback: advance by consumed tokens (what you already had)
+            train_loader.current_position += start_step * (B * T * ddp_world_size)
     if SAVE_OPTIMIZER and isinstance(state, dict) and "optimizer" in state:
         optimizer.load_state_dict(state["optimizer"])
 
@@ -390,9 +422,9 @@ if loaded_lr is not None:
         if i < len(loaded_lr) and loaded_lr[i] is not None:
             pg['lr'] = loaded_lr[i]
 
-if start_step > 0:
-    # advance the text cursor by exactly the tokens we consumed
-    train_loader.current_position += start_step * (B * T * ddp_world_size)
+# if start_step > 0:
+#     # advance the text cursor by exactly the tokens we consumed
+#     train_loader.current_position += start_step * (B * T * ddp_world_size)
 
 # =========================
 # Training loop (periodic saves + emergency save)

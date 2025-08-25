@@ -8,14 +8,14 @@ so far:
 - enter artist name to get albumlinks
 - get song link per albumlink
 - get lyrics from song links (artist folder still broken)
-- clean and combine all (join lines starts with "," + remove 2x / 3x mentions (without brackets))
+- clean and combine all*
 - train on it
 
 missing:
-- resume checkpoint (right now only within session!)
-- scrape books??
+fix combine all (join lines start with "," / remove 2x,3x mentions (without brackets) / clean pre-lyric texts-.-)
 ???
 
 optional: 
+books??
 gui?
 host it? (how?)
