@@ -6,12 +6,14 @@ just doing it for fun/excercise/science
 
 so far:
 - enter artist name to get albumlinks
-- get song links per albumlink
+- get song link per albumlink
 - get lyrics from song links (artist folder still broken)
 - clean and combine all (join lines starts with "," + remove 2x / 3x mentions (without brackets))
 - train on it
 
 missing:
+- resume checkpoint (right now only within session!)
+- scrape books??
 ???
 
 optional: 

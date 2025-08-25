@@ -9,6 +9,8 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 import lyricAI_functions
+
+""" basically andrej karpathys script mid to late video before he switched to a dataset, with some chatgpt edits"""
 # =========================
 # CONFIG (tweak these here)
 # =========================
