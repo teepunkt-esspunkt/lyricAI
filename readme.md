@@ -7,12 +7,12 @@ just doing it for fun/excercise/science
 so far:
 - enter artist name to get albumlinks
 - get song link per albumlink
-- get lyrics from song links (artist folder still broken)
+- get lyrics from song links* (artist folder still broken)
 - clean and combine all*
 - train on it
 
 missing:
-fix combine all (join lines start with "," / remove 2x,3x mentions (without brackets) / clean pre-lyric texts-.-)
+*remove 2x,3x mentions (without brackets)
 ???
 
 optional: 
