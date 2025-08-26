@@ -169,16 +169,7 @@ def combine_lyrics_corpus(
                         f.write(removed + "\n\n")
 
                 cleaned = _strip_brackets_and_repeat_tags(cleaned)
-                # join line -1 if line starts with ", [Character]"
 
-                # remove ALL [ ... ] blocks (multi-line and inline)
-
-                # raw_text = _strip_brackets_and_repeat_tags(raw_text)
-
-                # join line -1 if line starts with ", [Character]"
-                # remove 2x / 3x (without brackets)
-                
-                # now split back into lines and clean
                 kept_lines = []
                 for line in cleaned.splitlines():
                     s = line.replace("\u200b", "").strip()

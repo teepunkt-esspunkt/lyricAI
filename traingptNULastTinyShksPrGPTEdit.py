@@ -215,13 +215,6 @@ class DataLoaderLite:
         stride = B * T * self.num_processes
         self.current_position = (start + stride) % N
         return x, y        
-        # buf = self.tokens[self.current_position : self.current_position + B*T + 1]
-        # x = (buf[:-1]).view(B, T)
-        # y = (buf[1:]).view(B, T)
-        # self.current_position += B * T * self.num_processes
-        # if self.current_position + (B * T * self.num_processes + 1) > len(self.tokens):
-        #     self.current_position = self.B * self.T * self.process_rank
-        # return x, y
 
 # =========================
 # DDP / device setup
@@ -421,10 +414,6 @@ if loaded_lr is not None:
     for i, pg in enumerate(optimizer.param_groups):
         if i < len(loaded_lr) and loaded_lr[i] is not None:
             pg['lr'] = loaded_lr[i]
-
-# if start_step > 0:
-#     # advance the text cursor by exactly the tokens we consumed
-#     train_loader.current_position += start_step * (B * T * ddp_world_size)
 
 # =========================
 # Training loop (periodic saves + emergency save)
