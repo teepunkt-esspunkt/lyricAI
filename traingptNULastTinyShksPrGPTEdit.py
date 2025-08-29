@@ -17,7 +17,7 @@ import lyricAI_functions
 
 # Autosave
 SAVE_EVERY      = 20      # save every N steps (e.g., 10 / 20 / 50)
-KEEP_LAST_N     = 3       # keep last N step-tagged checkpoints
+KEEP_LAST_N     = 2       # keep last N step-tagged checkpoints
 
 # Choose checkpoint type
 SAVE_OPTIMIZER  = False   # True = FULL resume (model + optimizer + meta) (not tested!)
@@ -45,7 +45,7 @@ GRAD_CLIP       = 1.0
 
 # LR schedule
 WARMUP_STEPS    = 10
-MAX_STEPS       = 2000      # total training steps
+MAX_STEPS       = 9000      # total training steps
 
 # Generation
 NUM_RETURN      = 2
