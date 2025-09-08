@@ -73,7 +73,7 @@ class CausalSelfAttention(nn.Module):
         assert config.n_embd % config.n_head == 0
         self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
         self.c_proj = nn.Linear(config.n_embd,     config.n_embd)
-        self.c_proj.NANOGPT_SCALE_INIT = 1
+        self.c_proj.NANOGPT_SCALE_INIT = 1 # type: ignore
         self.n_head = config.n_head
         self.n_embd = config.n_embd
         self.register_buffer(
@@ -98,7 +98,7 @@ class MLP(nn.Module):
         self.c_fc   = nn.Linear(config.n_embd, 4 * config.n_embd)
         self.gelu   = nn.GELU(approximate='tanh')
         self.c_proj = nn.Linear(4 * config.n_embd, config.n_embd)
-        self.c_proj.NANOGPT_SCALE_INIT = 1
+        self.c_proj.NANOGPT_SCALE_INIT = 1 # type: ignore
 
     def forward(self, x):
         return self.c_proj(self.gelu(self.c_fc(x)))
@@ -129,7 +129,7 @@ class GPT(nn.Module):
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
         # tie weights (lm_head shares weights with token embedding)
-        self.lm_head.weight = self.transformer.wte.weight
+        self.lm_head.weight = self.transformer.wte.weight # type: ignore
 
         self.apply(self._init_weights)
 
@@ -148,10 +148,10 @@ class GPT(nn.Module):
         B, T = idx.size()
         assert T <= self.config.block_size, f"seq len {T} > block size {self.config.block_size}"
         pos = torch.arange(0, T, dtype=torch.long, device=idx.device)
-        x = self.transformer.wte(idx) + self.transformer.wpe(pos)
-        for block in self.transformer.h:
+        x = self.transformer.wte(idx) + self.transformer.wpe(pos) # type: ignore
+        for block in self.transformer.h: # type: ignore
             x = block(x)
-        x = self.transformer.ln_f(x)
+        x = self.transformer.ln_f(x) # type: ignore
         logits = self.lm_head(x)
         loss = None
         if targets is not None:
@@ -282,7 +282,7 @@ if ddp:
     model = DDP(model, device_ids=[ddp_local_rank])
 raw_model = model.module if ddp else model
 
-optimizer = raw_model.configure_optimizers(
+optimizer = raw_model.configure_optimizers( # type: ignore
     weight_decay=WEIGHT_DECAY, learning_rate=LEARNING_RATE, device_str=device, master_process=master_process
 )
 
@@ -392,7 +392,7 @@ if os.path.exists(CKPT_PATH):
 
     # model (supports both light payload and raw state_dict)
     state_dict = state["model"] if isinstance(state, dict) and "model" in state else state
-    raw_model.load_state_dict(state_dict, strict=True)
+    raw_model.load_state_dict(state_dict, strict=True) # type: ignore
 
     if isinstance(state, dict) and "meta" in state:
         start_step = int(state["meta"].get("step", 0))
@@ -433,7 +433,7 @@ try:
             loss = loss / grad_accum_steps
             loss_accum += loss.detach()
             if ddp:
-                model.require_backward_grad_sync = (micro_step == grad_accum_steps - 1)
+                model.require_backward_grad_sync = (micro_step == grad_accum_steps - 1) # type: ignore
             loss.backward()
 
         if ddp:
